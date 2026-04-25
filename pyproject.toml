@@ -139,8 +139,15 @@ ignore_missing_imports = true
 module = "shared.config.settings"
 disable_error_code = ["misc"]
 
+[[tool.mypy.overrides]]
+module = ["services.submission", "services.submission.*"]
+disallow_untyped_decorators = false
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Session-scoped async `engine` in conftest must share one event loop with all tests.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]

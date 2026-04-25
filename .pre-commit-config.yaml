@@ -27,6 +27,8 @@ repos:
           - pydantic>=2.9.0
           - sqlalchemy>=2.0.36
           - types-redis
+          - fastapi>=0.115.0
+          - opentelemetry-instrumentation-fastapi>=0.49b0
         args: [--config-file=pyproject.toml]
         exclude: ^(tests/|alembic/versions/)
 
