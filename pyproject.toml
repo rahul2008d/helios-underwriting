@@ -139,8 +139,18 @@ ignore_missing_imports = true
 module = "shared.config.settings"
 disable_error_code = ["misc"]
 
+# pre-commit's isolated mypy env does not install pydantic-ai; project venv does.
 [[tool.mypy.overrides]]
-module = ["services.submission", "services.submission.*"]
+module = ["pydantic_ai", "pydantic_ai.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "services.submission",
+    "services.submission.*",
+    "services.risk",
+    "services.risk.*",
+]
 disallow_untyped_decorators = false
 
 [tool.pytest.ini_options]
