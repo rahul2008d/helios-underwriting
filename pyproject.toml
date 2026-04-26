@@ -105,6 +105,7 @@ ignore = [
 [tool.ruff.lint.extend-per-file-ignores]
 "alembic/versions/*.py" = ["E501", "D", "ANN", "I001"]
 "alembic/env.py" = ["I001"]
+"scripts/seed_historical_policies.py" = ["E501", "S311"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -145,15 +146,23 @@ module = ["pydantic_ai", "pydantic_ai.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = ["celery", "celery.*", "openai", "openai.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = [
     "services.submission",
     "services.submission.*",
     "services.risk",
     "services.risk.*",
+    "services.risk.tasks",
+    "services.risk.tasks.*",
     "services.pricing",
     "services.pricing.*",
     "services.policy",
     "services.policy.*",
+    "services.rag",
+    "services.rag.*",
 ]
 disallow_untyped_decorators = false
 

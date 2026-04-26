@@ -14,6 +14,7 @@ from shared.database import (
     Base,
     models,  # noqa: F401  - register models
     models_endorsement,  # noqa: F401  - register endorsements table
+    models_historical,  # noqa: F401  - RAG historical policies
 )
 from sqlalchemy import engine_from_config, pool
 

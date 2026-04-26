@@ -1,9 +1,12 @@
-"""HTTP routes for the risk API v1."""
+"""HTTP routes for the risk API v1 with async task support."""
 
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
+from shared.celery.app import celery_app
 
+from celery.result import AsyncResult
 from services.risk.api.dependencies import RiskServiceDep
 from services.risk.schemas import (
     PricingSuggestionResponse,
@@ -12,6 +15,7 @@ from services.risk.schemas import (
     UnderwritingDecisionResponse,
 )
 from services.risk.services import SubmissionNotFoundError
+from services.risk.tasks.underwriting_tasks import process_underwriting_task
 
 router = APIRouter(prefix="/v1/risk", tags=["risk"])
 
@@ -85,13 +89,17 @@ async def suggest_pricing(
 @router.post(
     "/{submission_id}/process",
     response_model=UnderwritingDecisionResponse,
-    summary="Run the full underwriting workflow",
+    summary="Run the full underwriting workflow synchronously",
 )
 async def process_full_workflow(
     submission_id: UUID,
     service: RiskServiceDep,
 ) -> UnderwritingDecisionResponse:
-    """Run triage, then (if not declined) assessment and pricing."""
+    """Run triage, then (if not declined) assessment and pricing.
+
+    Synchronous: blocks until all AI calls complete (10-30 seconds).
+    For UI use, prefer /process-async.
+    """
     try:
         triage, assessment, pricing = await service.process_full_workflow(submission_id)
     except SubmissionNotFoundError as exc:
@@ -114,4 +122,53 @@ async def process_full_workflow(
             risk_loading_pct=pricing.risk_loading_pct,
             rationale=pricing.rationale,
         )
+    return response
+
+
+@router.post(
+    "/{submission_id}/process-async",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Run the full underwriting workflow asynchronously",
+)
+async def process_async(submission_id: UUID) -> dict[str, str]:
+    """Enqueue the full underwriting workflow as a Celery task.
+
+    Returns immediately with a task id. Poll /jobs/{task_id} for status
+    and the eventual result. Use this from UIs to avoid long-blocking calls.
+    """
+    task = process_underwriting_task.delay(str(submission_id))
+    return {
+        "task_id": task.id,
+        "status": "queued",
+        "submission_id": str(submission_id),
+    }
+
+
+@router.get(
+    "/jobs/{task_id}",
+    summary="Check the status of an async underwriting task",
+)
+async def get_task_status(task_id: str) -> dict[str, Any]:
+    """Return the status (and result, if complete) of an async task.
+
+    States:
+      - PENDING: task is queued or unknown
+      - STARTED: task is running
+      - SUCCESS: task complete, 'result' contains the underwriting decision
+      - FAILURE: task failed, 'error' contains the failure reason
+      - RETRY: task is being retried
+      - REVOKED: task was cancelled
+    """
+    result = AsyncResult(task_id, app=celery_app)
+
+    response: dict[str, Any] = {
+        "task_id": task_id,
+        "status": result.status,
+    }
+
+    if result.successful():
+        response["result"] = result.result
+    elif result.failed():
+        response["error"] = str(result.result)
+
     return response
