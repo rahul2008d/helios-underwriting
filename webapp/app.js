@@ -16,6 +16,8 @@ let state = {
   similarPolicies: [],
   pollTimer: null,
   currentTaskId: null,
+  existingQuote: null,
+  existingPolicy: null,
 };
 
 // === HELPERS ===
@@ -65,6 +67,30 @@ async function api(url, options = {}) {
     throw new Error(`${res.status}: ${text || res.statusText}`);
   }
   return res.json();
+}
+
+// Convert a persisted assessment + triage into the same shape as the async-task result
+// so the same renderer can be used.
+function buildUnderwritingFromPersisted(triage, assessment) {
+  if (!triage) return null;
+  const u = {
+    triage: {
+      decision: triage.decision,
+      confidence: triage.confidence,
+      reasoning: triage.reasoning,
+      appetite_matches: triage.appetite_matches,
+      appetite_concerns: triage.appetite_concerns,
+    },
+  };
+  if (assessment) {
+    u.assessment = {
+      risk_band: assessment.risk_band,
+      risk_score: assessment.risk_score,
+      factors: assessment.factors,
+      summary: assessment.summary,
+    };
+  }
+  return u;
 }
 
 // === SERVICE STATUS ===
@@ -137,6 +163,8 @@ async function selectSubmission(id) {
   state.underwriting = null;
   state.similarPolicies = [];
   state.currentTaskId = null;
+  state.existingQuote = null;
+  state.existingPolicy = null;
   if (state.pollTimer) {
     clearInterval(state.pollTimer);
     state.pollTimer = null;
@@ -146,6 +174,38 @@ async function selectSubmission(id) {
   try {
     const submission = await api(`${SUBMISSION_URL}/v1/submissions/${id}`);
     state.selectedSubmission = submission;
+
+    // Hydrate persisted underwriting state in parallel
+    const [triage, assessment, quotes] = await Promise.all([
+      api(`${RISK_URL}/v1/risk/${id}/triage`).catch(() => null),
+      api(`${RISK_URL}/v1/risk/${id}/assessment`).catch(() => null),
+      api(`${PRICING_URL}/v1/quotes/by-submission/${id}`).catch(() => []),
+    ]);
+
+    state.underwriting = buildUnderwritingFromPersisted(triage, assessment);
+
+    // If there are quotes, take the most recent (first in the list)
+    if (quotes && quotes.length > 0) {
+      state.existingQuote = quotes[0];
+
+      // We don't store pricing rationale on the quote in same shape; reconstruct enough
+      // to display the pricing card from the persisted data
+      if (!state.underwriting) state.underwriting = {};
+      state.underwriting.pricing = {
+        premium_amount: state.existingQuote.premium.amount.toString(),
+        premium_currency: state.existingQuote.premium.currency,
+        base_premium_amount: state.existingQuote.premium.amount.toString(),
+        risk_loading_pct: 0,
+        rationale: state.existingQuote.rationale,
+      };
+
+      // Check if a policy was bound from this quote
+      const policy = await api(`${POLICY_URL}/v1/policies/by-quote/${state.existingQuote.id}`).catch(
+        () => null,
+      );
+      if (policy) state.existingPolicy = policy;
+    }
+
     renderMain();
     loadSimilarPolicies(id);
   } catch (e) {
@@ -183,27 +243,76 @@ function renderMain() {
 function renderActionButtons(s) {
   const actions = el("div", { className: "actions" });
 
+  const hasUnderwriting = state.underwriting && state.underwriting.triage;
+  const declined = hasUnderwriting && state.underwriting.triage.decision === "decline";
+  const hasQuote = !!state.existingQuote;
+  const hasPolicy = !!state.existingPolicy;
+
+  // "Run AI underwriting" button
+  // - Always show, but label changes if we already have results
+  const runLabel = hasUnderwriting ? "↻ Re-run AI underwriting" : "▶ Run AI underwriting";
   const runBtn = el(
     "button",
     {
-      className: "btn",
+      className: hasUnderwriting ? "btn secondary" : "btn",
       onclick: () => runUnderwriting(s.id),
       id: "runBtn",
     },
-    "▶ Run AI underwriting",
+    runLabel,
   );
   actions.appendChild(runBtn);
 
-  if (state.underwriting && state.underwriting.pricing) {
-    const quoteBtn = el(
-      "button",
-      {
-        className: "btn secondary",
-        onclick: () => createQuote(s.id),
-      },
-      "Create quote",
+  // Quote / PDF / Bind buttons depending on state
+  if (state.underwriting && state.underwriting.pricing && !hasQuote && !declined) {
+    actions.appendChild(
+      el(
+        "button",
+        {
+          className: "btn secondary",
+          onclick: () => createQuote(s.id),
+        },
+        "Create quote",
+      ),
     );
-    actions.appendChild(quoteBtn);
+  }
+
+  if (hasQuote) {
+    actions.appendChild(
+      el(
+        "button",
+        {
+          className: "btn secondary",
+          onclick: () => window.open(`${PRICING_URL}/v1/quotes/${state.existingQuote.id}/pdf`, "_blank"),
+        },
+        `📄 Download ${state.existingQuote.quote_reference}.pdf`,
+      ),
+    );
+
+    if (!hasPolicy) {
+      actions.appendChild(
+        el(
+          "button",
+          {
+            className: "btn success",
+            onclick: () => bindPolicy(state.existingQuote.id),
+          },
+          "Bind policy",
+        ),
+      );
+    }
+  }
+
+  if (hasPolicy) {
+    actions.appendChild(
+      el(
+        "div",
+        {
+          style:
+            "padding: 10px 16px; background: rgba(63, 185, 80, 0.15); color: var(--green); border-radius: var(--radius); font-size: 13px; font-weight: 500;",
+        },
+        `✓ Bound: ${state.existingPolicy.policy_number}`,
+      ),
+    );
   }
 
   return actions;
@@ -257,19 +366,16 @@ function renderWorkflowSection(s) {
   const u = state.underwriting;
 
   // Triage step
-  const triageStep = renderTriageStep(u);
-  section.appendChild(triageStep);
+  section.appendChild(renderTriageStep(u));
 
-  // Assessment step
+  // Assessment step (skip if declined)
   if (!u || u.triage?.decision !== "decline") {
-    const assessmentStep = renderAssessmentStep(u);
-    section.appendChild(assessmentStep);
+    section.appendChild(renderAssessmentStep(u));
   }
 
-  // Pricing step
+  // Pricing step (skip if declined)
   if (!u || u.triage?.decision !== "decline") {
-    const pricingStep = renderPricingStep(u);
-    section.appendChild(pricingStep);
+    section.appendChild(renderPricingStep(u));
   }
 
   return section;
@@ -506,6 +612,8 @@ async function runUnderwriting(submissionId) {
     });
     state.currentTaskId = result.task_id;
     state.underwriting = {};
+    state.existingQuote = null; // Will need a fresh quote after re-run
+    state.existingPolicy = null;
     renderMain();
     pollTask(result.task_id, submissionId);
     toast("Underwriting started", "success");
@@ -528,7 +636,6 @@ function pollTask(taskId, submissionId) {
         state.currentTaskId = null;
         state.underwriting = status.result;
         renderMain();
-        // Refresh the submission to get the updated status
         loadSubmissions();
         toast("Underwriting complete", "success");
       } else if (status.status === "FAILURE") {
@@ -619,32 +726,9 @@ async function createQuote(submissionId) {
         rationale: u.pricing.rationale,
       }),
     });
+    state.existingQuote = quote;
     toast(`Quote created: ${quote.quote_reference}`, "success");
-
-    // Offer to download PDF and bind
-    const actions = document.querySelector(".detail-header .actions");
-    if (actions) {
-      actions.appendChild(
-        el(
-          "button",
-          {
-            className: "btn secondary",
-            onclick: () => window.open(`${PRICING_URL}/v1/quotes/${quote.id}/pdf`, "_blank"),
-          },
-          "📄 Download PDF",
-        ),
-      );
-      actions.appendChild(
-        el(
-          "button",
-          {
-            className: "btn success",
-            onclick: () => bindPolicy(quote.id),
-          },
-          "Bind policy",
-        ),
-      );
-    }
+    renderMain();
   } catch (e) {
     toast(`Failed to create quote: ${e.message}`, "error");
   }
@@ -659,8 +743,10 @@ async function bindPolicy(quoteId) {
         bound_by: "underwriter_alice",
       }),
     });
+    state.existingPolicy = policy;
     toast(`Policy bound: ${policy.policy_number}`, "success");
     loadSubmissions();
+    renderMain();
   } catch (e) {
     toast(`Failed to bind: ${e.message}`, "error");
   }

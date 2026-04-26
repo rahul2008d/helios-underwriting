@@ -44,6 +44,20 @@ async def create_quote(
 
 
 @router.get(
+    "/by-submission/{submission_id}",
+    response_model=list[QuoteResponse],
+    summary="Get all quotes for a submission",
+)
+async def get_quotes_for_submission(
+    submission_id: UUID,
+    service: PricingServiceDep,
+) -> list[QuoteResponse]:
+    """Return all quotes generated for a submission, newest first."""
+    quotes = await service.list_for_submission(submission_id)
+    return [QuoteResponse.from_domain(quote) for quote in quotes]
+
+
+@router.get(
     "/{quote_id}",
     response_model=QuoteResponse,
     summary="Get a quote by id",

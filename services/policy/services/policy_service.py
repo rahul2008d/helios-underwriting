@@ -116,6 +116,10 @@ class PolicyService:
             raise PolicyNotFoundError(str(policy_id))
         return policy
 
+    async def get_by_quote_id(self, quote_id: UUID) -> Policy | None:
+        """Return the policy created from a quote, if one exists."""
+        return await self._policy_repository.get_by_quote_id(quote_id)
+
     async def get_by_number(self, policy_number: str) -> Policy:
         """Return the policy with the given customer-facing number."""
         policy = await self._policy_repository.get_by_number(policy_number)

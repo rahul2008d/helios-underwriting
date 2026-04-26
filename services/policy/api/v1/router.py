@@ -64,6 +64,27 @@ async def bind_policy(
 
 
 @router.get(
+    "/by-quote/{quote_id}",
+    response_model=PolicyResponse | None,
+    summary="Get the policy bound from a specific quote, if any",
+)
+async def get_policy_by_quote(
+    quote_id: UUID,
+    service: PolicyServiceDep,
+) -> PolicyResponse | None:
+    """Return the policy that was bound from a given quote, or null if none exists."""
+    policy = await service.get_by_quote_id(quote_id)
+    if policy is None:
+        return None
+    endorsements = await service.list_endorsements_for_policy(policy.id)
+    return PolicyResponse.from_domain(
+        policy,
+        valid_next_states=service.valid_next_states_for(policy),
+        endorsements=endorsements,
+    )
+
+
+@router.get(
     "/{policy_id}",
     response_model=PolicyResponse,
     summary="Get a policy by id",
