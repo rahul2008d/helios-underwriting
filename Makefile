@@ -1,4 +1,4 @@
-.PHONY: help install dev-up dev-down test test-unit test-integration lint format type-check check seed run-submission run-risk migrate
+.PHONY: help install dev-up dev-down test test-unit test-integration lint format type-check check seed run-submission run-risk run-pricing run-policy migrate
 
 help:
 	@echo "Available commands:"
@@ -16,6 +16,8 @@ help:
 	@echo "  seed              Seed the database with sample submissions"
 	@echo "  run-submission    Run the submission service on port 8001"
 	@echo "  run-risk          Run the risk service on port 8002"
+	@echo "  run-pricing       Run the pricing service on port 8003"
+	@echo "  run-policy        Run the policy service on port 8004"
 
 install:
 	uv sync --all-groups
@@ -60,3 +62,9 @@ run-submission:
 
 run-risk:
 	uv run uvicorn services.risk.main:app --reload --port 8002 --host 0.0.0.0
+
+run-pricing:
+	uv run uvicorn services.pricing.main:app --reload --port 8003 --host 0.0.0.0
+
+run-policy:
+	uv run uvicorn services.policy.main:app --reload --port 8004 --host 0.0.0.0

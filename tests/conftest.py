@@ -18,6 +18,7 @@ from services.submission.main import create_app
 from services.submission.schemas import CreateSubmissionRequest
 from shared.database import Base
 from shared.database import models as _models  # noqa: F401  - register models
+from shared.database import models_endorsement as _models_endorsement  # noqa: F401
 from shared.domain import (
     Address,
     Coverage,

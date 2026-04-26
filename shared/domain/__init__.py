@@ -3,6 +3,11 @@
 Re-exports the core domain types so they can be imported as `shared.domain`.
 """
 
+from shared.domain.endorsement import (
+    Endorsement,
+    EndorsementStatus,
+    EndorsementType,
+)
 from shared.domain.entities import (
     Coverage,
     Driver,
@@ -22,16 +27,26 @@ from shared.domain.enums import (
     TriageDecision,
     VehicleType,
 )
+from shared.domain.policy_state import (
+    InvalidPolicyTransitionError,
+    assert_transition,
+    can_transition,
+    valid_next_states,
+)
 from shared.domain.value_objects import Address, DateRange, Money
 
 __all__ = [
     # Value objects
     "Address",
     "Coverage",
-    "Currency",
     "CoverageType",
+    "Currency",
     "DateRange",
     "Driver",
+    "Endorsement",
+    "EndorsementStatus",
+    "EndorsementType",
+    "InvalidPolicyTransitionError",
     "Money",
     # Entities
     "Policy",
@@ -45,4 +60,7 @@ __all__ = [
     "TriageResult",
     "Vehicle",
     "VehicleType",
+    "assert_transition",
+    "can_transition",
+    "valid_next_states",
 ]

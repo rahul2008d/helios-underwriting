@@ -150,6 +150,10 @@ module = [
     "services.submission.*",
     "services.risk",
     "services.risk.*",
+    "services.pricing",
+    "services.pricing.*",
+    "services.policy",
+    "services.policy.*",
 ]
 disallow_untyped_decorators = false
 

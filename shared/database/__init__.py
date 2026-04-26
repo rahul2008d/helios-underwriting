@@ -8,10 +8,12 @@ from shared.database.models import (
     SubmissionRecord,
     TriageResultRecord,
 )
+from shared.database.models_endorsement import EndorsementRecord
 from shared.database.session import get_db_session, get_engine, get_session_factory
 
 __all__ = [
     "Base",
+    "EndorsementRecord",
     "PolicyRecord",
     "QuoteRecord",
     "RiskAssessmentRecord",

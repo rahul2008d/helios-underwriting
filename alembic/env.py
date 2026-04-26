@@ -13,6 +13,7 @@ from shared.config import get_settings
 from shared.database import (
     Base,
     models,  # noqa: F401  - register models
+    models_endorsement,  # noqa: F401  - register endorsements table
 )
 from sqlalchemy import engine_from_config, pool
 

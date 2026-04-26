@@ -63,5 +63,18 @@ def get_settings() -> Settings:
     """Return cached settings instance.
 
     Cached so the .env file is only read once per process.
+    Also exports OPENAI_API_KEY to os.environ so libraries that read
+    directly from environment (like the OpenAI client used by PydanticAI)
+    can find it.
     """
-    return Settings()
+    import os
+
+    settings = Settings()
+
+    if (
+        settings.openai_api_key
+        and settings.openai_api_key != "sk-placeholder"  # pragma: allowlist secret
+    ):
+        os.environ["OPENAI_API_KEY"] = settings.openai_api_key  # pragma: allowlist secret
+
+    return settings
