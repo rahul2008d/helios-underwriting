@@ -1,4 +1,4 @@
-.PHONY: help install dev-up dev-down test test-unit test-integration lint format type-check check seed seed-historical run-submission run-risk run-pricing run-policy run-rag run-celery-worker migrate
+.PHONY: help install dev-up dev-down test test-unit test-integration lint format type-check check seed seed-historical run-submission run-risk run-pricing run-policy run-rag run-celery-worker run-webapp migrate
 
 help:
 	@echo "Available commands:"
@@ -21,6 +21,7 @@ help:
 	@echo "  run-policy           Run the policy service on port 8004"
 	@echo "  run-rag              Run the RAG service on port 8005"
 	@echo "  run-celery-worker    Run a Celery worker for async tasks"
+	@echo "  run-webapp           Serve the underwriting workbench UI on port 3000"
 
 install:
 	uv sync --all-groups
@@ -80,3 +81,6 @@ run-rag:
 
 run-celery-worker:
 	uv run celery -A shared.celery.app worker --loglevel=info --concurrency=2
+
+run-webapp:
+	uv run python -m scripts.serve_webapp

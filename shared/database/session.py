@@ -51,6 +51,17 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
     return _session_factory
 
 
+def reset_async_engine_cache() -> None:
+    """Drop cached engine/factory (e.g. before ``asyncio.run`` in a Celery task).
+
+    Async SQLAlchemy engines are tied to the event loop they are first used on;
+    a new ``asyncio.run()`` in the same process needs a fresh engine.
+    """
+    global _engine, _session_factory
+    _engine = None
+    _session_factory = None
+
+
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency yielding a managed async database session."""
     factory = get_session_factory()

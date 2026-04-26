@@ -37,6 +37,14 @@ def process_underwriting_task(self: Any, submission_id: str) -> dict[str, Any]:
         submission_id=submission_id,
     )
 
+    # Each Celery task uses `asyncio.run()`, which creates a new event loop. A
+    # process-global AsyncEngine is bound to the loop it was first used on, so
+    # we must drop the cache before each run or the next task fails with
+    # "Future attached to a different loop".
+    from shared.database.session import reset_async_engine_cache
+
+    reset_async_engine_cache()
+
     try:
         result = asyncio.run(_run_workflow(UUID(submission_id)))
         logger.info(
